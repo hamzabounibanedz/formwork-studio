@@ -6,6 +6,11 @@ const protectedRoutes = '/dashboard';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const accounts = Boolean(process.env.AUTH_SECRET && process.env.POSTGRES_URL);
+  if ((!accounts && ['/dashboard', '/sign-up', '/sign-in'].some(path => pathname === path || pathname.startsWith(path + '/')))
+      || (pathname === '/pricing' && !process.env.STRIPE_SECRET_KEY)) {
+    return NextResponse.redirect(new URL('/#project', request.url));
+  }
   const sessionCookie = request.cookies.get('session');
   const isProtectedRoute = pathname.startsWith(protectedRoutes);
 

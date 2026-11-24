@@ -1,41 +1,22 @@
 import './globals.css';
-import type { Metadata, Viewport } from 'next';
-import { Manrope } from 'next/font/google';
-import { getUser, getTeamForUser } from '@/lib/db/queries';
+import type { Metadata } from 'next';
 import { SWRConfig } from 'swr';
+import { getUser, getTeamForUser } from '@/lib/db/queries';
 
 export const metadata: Metadata = {
-  title: 'Next.js SaaS Starter',
-  description: 'Get started quickly with Next.js, Postgres, and Stripe.'
+  title: 'Formwork Studio | Project board',
+  description: 'A working brief and handover board for small design studios.',
+  icons: { icon: '/formwork.svg' }
 };
 
-export const viewport: Viewport = {
-  maximumScale: 1
-};
-
-const manrope = Manrope({ subsets: ['latin'] });
-
-export default function RootLayout({
-  children
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const configured = Boolean(process.env.AUTH_SECRET && process.env.POSTGRES_URL);
   return (
-    <html
-      lang="en"
-      className={`bg-white dark:bg-gray-950 text-black dark:text-white ${manrope.className}`}
-    >
-      <body className="min-h-[100dvh] bg-gray-50">
-        <SWRConfig
-          value={{
-            fallback: {
-              // We do NOT await here
-              // Only components that read this data will suspend
-              '/api/user': getUser(),
-              '/api/team': getTeamForUser()
-            }
-          }}
-        >
+    <html lang="en">
+      <body>
+        <SWRConfig value={{ fallback: configured ? {
+          '/api/user': getUser(), '/api/team': getTeamForUser()
+        } : {} }}>
           {children}
         </SWRConfig>
       </body>

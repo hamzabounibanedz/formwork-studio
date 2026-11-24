@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { checkoutAction } from '@/lib/payments/actions';
 import { Check } from 'lucide-react';
 import { getStripePrices, getStripeProducts } from '@/lib/payments/stripe';
@@ -7,6 +8,7 @@ import { SubmitButton } from './submit-button';
 export const revalidate = 3600;
 
 export default async function PricingPage() {
+  if (!process.env.STRIPE_SECRET_KEY) redirect("/#project");
   const [prices, products] = await Promise.all([
     getStripePrices(),
     getStripeProducts(),
