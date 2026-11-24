@@ -1,26 +1,44 @@
-name: Verify portfolio
-on: workflow_dispatch
-permissions:
-  contents: read
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - name: Install and build
+undefined      - name: Test the live interface in Chrome
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
         run: |
-          npm install -g pnpm@10
-          pnpm install --frozen-lockfile
-          pnpm build
-      - name: Check public routes
-        run: |
-          npm start > /tmp/portfolio.log 2>&1 &
-          curl --retry 20 --retry-all-errors --retry-delay 1 -fsS http://localhost:3000/ -o /tmp/home.html
-          grep -Fq 'Courtyard House' /tmp/home.html
-          curl -fsS http://localhost:3000/api/user | grep -q null
+          mkdir -p "$RUNNER_TEMP/browser"
+          npm install --prefix "$RUNNER_TEMP/browser" --no-audit --no-fund playwright-core@1.65.1
+          cat > "$RUNNER_TEMP/browser/verify.cjs" <<'JS'
+          const { chromium } = require('playwright-core');
+          const assert = require('node:assert/strict');
+
+          (async () => {
+            const browser = await chromium.launch({ executablePath: process.env.CHROME_BIN, headless: true });
+            try {
+              const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, permissions: ['clipboard-read', 'clipboard-write'] });
+              const page = await context.newPage();
+              const errors = [];
+              page.on('pageerror', error => errors.push(error.message));
+              await page.goto('http://localhost:3000/');
+              await page.getByRole('link', { name: 'Open the sample board' }).click();
+              await page.getByRole('button', { name: /Canal Workshop/ }).click();
+              const task = page.getByLabel('Compare the two entry schemes');
+              await task.check();
+              await page.reload();
+              await page.getByRole('button', { name: /Canal Workshop/ }).click();
+              assert.equal(await task.isChecked(), true);
+              await page.getByRole('button', { name: /Courtyard House/ }).click();
+              for (const width of [1440, 390]) {
+                await page.setViewportSize({ width, height: 900 });
+                await page.evaluate(() => window.scrollTo(0, 0));
+                assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Horizontal overflow');
+                await page.screenshot({ path: process.env.RUNNER_TEMP + '/portfolio-' + width + '.png', fullPage: true });
+              }
+              assert.deepEqual(errors, []);
+            } finally {
+              await browser.close();
+            }
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          JS
+          node "$RUNNER_TEMP/browser/verify.cjs"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: portfolio-screenshots
+          path: ${{ runner.temp }}/portfolio-*.png
+          retention-days: 7
